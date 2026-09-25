@@ -1,0 +1,23 @@
+# Swift & Xcode Build Artifacts
+.build/
+dist/
+DerivedData/
+*.xcodeproj
+*.xcworkspace
+*.dSYM
+
+# Python & Tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# macOS System Files
+.DS_Store
+Thumbs.db
+
+# Private local state & locks
+instance.lock
+*.tmp
