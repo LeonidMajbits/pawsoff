@@ -58,6 +58,11 @@ public struct InputGate {
         phase = .draining
         lastEscape = nil
     }
+    public mutating func cancelDrain() {
+        guard phase == .draining else { return }
+        phase = .active
+        lastEscape = nil
+    }
     public mutating func reset() { self = InputGate() }
 
     /// Called after all tracked physical releases, after at least a short drain interval.

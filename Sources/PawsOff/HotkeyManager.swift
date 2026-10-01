@@ -18,7 +18,7 @@ final class HotkeyManager {
             EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))
         ]
         let handlerStatus = types.withUnsafeBufferPointer { buffer in
-            InstallEventHandler(GetApplicationEventTarget(), { _, event, pointer in
+            InstallEventHandler(GetEventDispatcherTarget(), { _, event, pointer in
                 guard let event, let pointer else { return OSStatus(eventNotHandledErr) }
                 let manager = Unmanaged<HotkeyManager>.fromOpaque(pointer).takeUnretainedValue()
                 var keyID = EventHotKeyID()
@@ -42,7 +42,7 @@ final class HotkeyManager {
         }
         let keyID = EventHotKeyID(signature: signature, id: identifier)
         let status = RegisterEventHotKey(UInt32(kVK_ANSI_1), UInt32(controlKey), keyID,
-                                        GetApplicationEventTarget(), 0, &hotKey)
+                                        GetEventDispatcherTarget(), 0, &hotKey)
         guard status == noErr else {
             unregister()
             throw PawsOffError.message("Ctrl+1 is unavailable (\(status)). Check Mission Control’s Move to Desktop 1 shortcut.")

@@ -29,6 +29,11 @@ final class InputShield {
     private var drainedSent = false
     private var heartbeat = ProcessInfo.processInfo.systemUptime
     private var drainStarted: Double?
+    private var awaitingPasskey = false
+    var isAwaitingPasskey: Bool {
+        get { locked { awaitingPasskey } }
+        set { locked { awaitingPasskey = newValue } }
+    }
 
     private static let types: [CGEventType] = [
         .keyDown, .keyUp, .flagsChanged,
@@ -85,6 +90,7 @@ final class InputShield {
                 return owner.handle(type, event, token: context.generation)
             }, userInfo: Unmanaged.passUnretained(context).toOpaque()
         ) else {
+            NSLog("[PawsOff] CGEvent.tapCreate returned nil")
             throw PawsOffError.message("macOS refused the input tap. Check Accessibility and Input Monitoring for this exact app, then relaunch.")
         }
         CGEvent.tapEnable(tap: newTap, enable: false)
@@ -92,8 +98,13 @@ final class InputShield {
             CFMachPortInvalidate(newTap)
             throw PawsOffError.message("Could not create the input run-loop source.")
         }
-        do { try Self.verifyGrantedMask() }
-        catch { CFMachPortInvalidate(newTap); throw error }
+        do {
+            try Self.verifyGrantedMask()
+        } catch {
+            NSLog("[PawsOff] verifyGrantedMask failed: %@", error.localizedDescription)
+            CFMachPortInvalidate(newTap)
+            throw error
+        }
 
         let initialKeys = Set((UInt16(0)...UInt16(127)).filter {
             !Self.modifierKeys.contains($0) && CGEventSource.keyState(.hidSystemState, key: $0)
@@ -152,11 +163,21 @@ final class InputShield {
         }
     }
 
+    func cancelDrain() {
+        precondition(Thread.isMainThread)
+        locked {
+            drainStarted = nil
+            drainedSent = false
+            gate.cancelDrain()
+        }
+    }
+
     func stopImmediately() {
         precondition(Thread.isMainThread)
         let resources = locked { () -> (CFMachPort?, CFRunLoop?) in
             generation &+= 1
             running = false; gate.reset(); drainStarted = nil
+            awaitingPasskey = false
             let values = (tap, workerLoop)
             tap = nil; workerLoop = nil
             return values
@@ -176,7 +197,13 @@ final class InputShield {
     private func handle(_ type: CGEventType, _ event: CGEvent,
                         token: UInt64) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let activeTap = tap { CGEvent.tapEnable(tap: activeTap, enable: true) }
             failOpen("macOS disabled the event tap; the curtain was removed. Re-arm manually.", token: token)
+            return Unmanaged.passUnretained(event)
+        }
+        if locked({ awaitingPasskey }) {
+            // While awaiting passkey entry, allow keyboard and mouse events to route
+            // to PawsOff's frontmost key CurtainWindow so the user can interact with the PIN field.
             return Unmanaged.passUnretained(event)
         }
         let input: GuardInput
@@ -297,7 +324,7 @@ final class InputShield {
         }
         for index in 0..<Int(count) {
             let entry = entries[index]
-            if entry.tappingProcess == getpid(), entry.tapPoint == .cgSessionEventTap,
+            if entry.tappingProcess == getpid(), (entry.tapPoint == .cghidEventTap || entry.tapPoint == .cgSessionEventTap),
                entry.options == .defaultTap,
                entry.eventsOfInterest & requiredMask == requiredMask { return }
         }

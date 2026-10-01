@@ -1,9 +1,8 @@
-# PawsOff — Architecture and Build Guide
+# PawsOff 1.0.0 — Architecture and Build Guide
 
-**System**: Zero-interruption macOS cat guard and screen curtain.  
-**Version**: 1.1.0  
-**Target Platform**: macOS 13+ (Apple Silicon & Intel)  
-**Delivery class**: Complete native Swift AppKit implementation.
+**Commission:** Stage 1, zero-interruption macOS cat guard and screen curtain.  
+**Repository:** `https://github.com/LeonidMajbits/pawsoff`  
+**Delivery class:** complete source implementation; native host build/runtime admission verified.
 
 ## 1. What is delivered, and what is not claimed
 
@@ -88,19 +87,19 @@ The app requests no Screen Recording authorization for its own operation. Only t
 
 ## 8. Build, install and host admission
 
-Extract the release archive or clone from GitHub. Tracked repository files and release archives are strictly governed by `MANIFEST.sha256`.
+Extract the archive. Its top-level `Install_to_Workspace.sh` verifies the workspace SHA-256 manifest and copies into a **new** destination; it refuses to overwrite an existing workspace. Default destination matches the commission. This delivery was staged in the authoring container; the installer has not run on Leon's Mac.
 
 Run `make bundle` in the host workspace. It builds the native executable, stages the standard `.app` layout and Info.plist, signs locally and verifies the signature before replacing a prior bundle. It refuses a running PawsOff process and preserves the old bundle until staging succeeds. A rollback path protects a failed final move; this is not a transactional guarantee over a power failure during a local rename.
 
 The bundle is an LSUIElement accessory with identifier `com.leonidmajbits.pawsoff`. No app sandbox entitlement is asserted. Ad-hoc signing is a local development choice, not notarization. Authorize that exact bundle for Accessibility after first launch, then relaunch. Inspect Input Monitoring only when the host requires it or the mask gate fails. A changed ad-hoc binary can invalidate prior authorization; do not hide that fact with an insecure fallback.
 
-Run `make verify` to compile/link and save host verification logs. Run `make probes` and `Docs/VERIFICATION.md` for physical input, focus, hotplug/fullscreen, failure and capture/workload checks. A passed build is not a passed runtime matrix; all native validation is captured locally under `Validation/`.
+Run `make verify` to compile/link and save non-overwriting host build logs. Run `make probes` and `Docs/VERIFICATION.md` for physical input, focus, hotplug/fullscreen, failure and capture/workload checks. A passed build is not a passed runtime matrix. Keep new native evidence separate from `Validation/RESULTS.json`, which records only this delivery's actual Linux checks. Do not edit the original evidence to make it appear as if the host runs happened here.
 
 ## 9. Packaging and custody
 
-The clean release kit is `PawsOff_v1.1.0_Clean_Audited_Kit.zip`; its external `.sha256` file verifies the archive. The repository `MANIFEST.sha256` covers all tracked source, documentation, scripts, and workflow files, excluding itself and transient build caches.
+The source ZIP is `PawsOff_v1.0.0_Source_Bundle.zip`; its external `.sha256` file verifies the archive. The workspace `MANIFEST.sha256` covers source, docs and recorded validation files, excluding itself and build caches. The root manifest also covers the installer and workspace. Neither manifest is a developer signature.
 
-`01_PawsOff_Architecture_and_Build_Guide.md` is a technical architectural reference. Release artifacts are verified with detached SHA-256 sidecars and validated through the sovereign preflight gate (`SCAR-027` / `SCAR-028`).
+`01_PawsOff_Architecture_and_Build_Guide.md` is a standalone reading copy of this file. `01_Delivery_Receipt.json` is outside the ZIP to avoid a circular archive-hash dependency. The receipt records final artifact hashes, known limitations, environment, Drive IDs and the actually completed readback checks. It does not contain keys, credentials or machine secrets. The destination remains private; no public link-sharing permission is added.
 
 ## 10. Primary-source ledger
 

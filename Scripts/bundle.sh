@@ -6,7 +6,7 @@ cd "$ROOT"
 if pgrep -x PawsOff >/dev/null; then
   echo 'Quit PawsOff before replacing its bundle (TCC identity must remain stable).' >&2; exit 2
 fi
-BIN="$(xcrun swift build -c release --show-bin-path)/PawsOff"
+BIN="$(xcrun swift build -c release --scratch-path /tmp/pawsoff-build --show-bin-path)/PawsOff"
 [[ -x "$BIN" ]] || { echo 'Run make build first.' >&2; exit 2; }
 mkdir -p dist
 STAGE="$(mktemp -d "$ROOT/dist/.PawsOff-stage.XXXXXX")"
@@ -14,6 +14,7 @@ trap 'rm -rf -- "$STAGE"' EXIT
 APP="$STAGE/PawsOff.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/PawsOff"
+cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 chmod 755 "$APP/Contents/MacOS/PawsOff"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -24,10 +25,12 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>com.leonidmajbits.pawsoff</string>
 <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
 <key>CFBundleName</key><string>PawsOff</string>
+<key>CFBundleIconFile</key><string>AppIcon.icns</string>
+<key>CFBundleIconName</key><string>AppIcon</string>
 <key>CFBundleDisplayName</key><string>PawsOff</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.1.0</string>
-<key>CFBundleVersion</key><string>1.1.0</string>
+<key>CFBundleShortVersionString</key><string>1.2.0</string>
+<key>CFBundleVersion</key><string>3</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
@@ -36,7 +39,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 plutil -lint "$APP/Contents/Info.plist"
 IDENTITY="${CODE_SIGN_IDENTITY:--}"
-codesign --force --sign "$IDENTITY" --identifier com.leonidmajbits.pawsoff "$APP"
+codesign --force --sign "$IDENTITY" --identifier com.leonidmajbits.pawsoff -r='designated => identifier "com.leonidmajbits.pawsoff"' "$APP"
 codesign --verify --strict --verbose=2 "$APP"
 # Never delete the previous bundle until the staged binary and signature have passed.
 # Roll back if the final move fails. This is a local replacement, not distribution notarization.

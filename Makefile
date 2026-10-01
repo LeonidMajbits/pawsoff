@@ -7,7 +7,7 @@ check-native:
 	@xcrun --find swift >/dev/null
 
 build: check-native
-	xcrun swift build -c release --product PawsOff
+	xcrun swift build -c release --product PawsOff --scratch-path /tmp/pawsoff-build
 
 bundle: build
 	./Scripts/bundle.sh
@@ -16,7 +16,7 @@ run: bundle
 	open -g "$(CURDIR)/dist/PawsOff.app"
 
 test:
-	swift test
+	./Scripts/run_core_tests.sh
 	python3 Scripts/audit_source.py
 
 verify: check-native
@@ -24,7 +24,7 @@ verify: check-native
 
 clean:
 	@if [ "$$(uname -s)" = Darwin ] && pgrep -x PawsOff >/dev/null; then echo 'Quit PawsOff before cleaning its build.' >&2; exit 2; fi
-	rm -rf -- .build dist
+	rm -rf -- .build dist /tmp/pawsoff-build
 
 
 .PHONY: probes

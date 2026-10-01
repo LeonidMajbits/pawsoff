@@ -1,82 +1,136 @@
-# PawsOff: Zero-Interruption macOS Cat Guard & Screen Curtain
-
-> "Engineered under the Triadic Sovereign Development Architecture: Leonid Majbits (Vision & Invariants) · Gemini Operator Lab (ZION Chassis Execution & Verification) · Frontier Systems Models (Synthesis & Stress-Testing)."
-
-**A native macOS menu-bar cat guard, not an OS screen lock.** Drops an interactive frosted, dimmed curtain across active displays to block stray keystrokes, trackpad bumps, clicks, drags, and scrolling without making curtain windows key or stealing focus. Return instantly with **Ctrl+1** or **two distinct Escape presses within 650 ms**. No password required.
-
-Unlike standard macOS lock screens (`Cmd+Ctrl+Q`) or sleep modes, PawsOff **holds user-space power assertions to prevent idle display and system sleep without locking credentials, keeping active daemons, compilation loops, and background processes unhindered by idle sleep interrupts**.
-
----
-
-## Key Capabilities
-
-- **Zero-Disruption Architecture**: Acquires `kIOPMAssertPreventUserIdleDisplaySleep` and `kIOPMAssertPreventUserIdleSystemSleep` assertions so background daemons, compilers, and inference engines continue running without idle sleep interruptions.
-- **Input Shielding via Active Session Tap**: Installs an active `CGEvent.tapCreate` at `.cgSessionEventTap` to filter routine keyboard, mouse, click, drag, and scroll events before target-application delivery.
-- **Visual Frosted Curtain**: Spans all active displays (`NSScreen.screens`) with borderless `.screenSaver`-level windows that remain non-key and non-main.
-- **Adjustable Blur & Tint**:
-  * **Blur Slider** (0–100%): Adjusts `NSVisualEffectView` frosted glass material opacity.
-  * **Tint Slider** (0–100%): Linearly adjusts darkening from $0.0$ to $0.82$. Strictly capped at $82\%$ black so mouse cursor position and display silhouette remain comfortably visible.
-- **Stealth Mode HUD**: Optional setting in menu popover to suppress on-screen unlock cards for a completely unobtrusive, frosted backdrop.
-- **Multi-Monitor Dynamic Re-Anchoring**: Automatically handles display connect/disconnect events and Spaces transitions.
-- **Fail-Open Safety & Dual Recovery**:
-  * **Global Hotkey**: Carbon-registered `Ctrl+1` chord instantly toggles the shield.
-  * **Double-Tap Escape**: Two discrete Escape key presses within 650 ms immediately dismiss the curtain.
-  * **Fail-Open Policy**: If Secure Event Input activates or event tap permissions are revoked, PawsOff fails open and removes the curtain rather than trapping the operator.
-- **Zero Third-Party Dependencies**: Pure Swift 5.9+ standard library, AppKit, Carbon, CoreGraphics, ApplicationServices, and IOKit.
+<div align="center">
+  <img src="Docs/pawsoff_icon.png" width="128" height="128" alt="PawsOff Icon" />
+  <h1>PawsOff</h1>
+  <p><strong>Zero-Interruption macOS Screen Curtain & Physical Input Shield</strong></p>
+  <p>
+    <a href="https://github.com/LeonidMajbits/pawsoff/releases"><img src="https://img.shields.io/badge/version-1.2.0-blue.svg" alt="Version 1.2.0" /></a>
+    <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey.svg" alt="macOS 13+" />
+    <img src="https://img.shields.io/badge/arch-Apple%20Silicon%20%7C%20Intel-success.svg" alt="Architecture" />
+    <img src="https://img.shields.io/badge/swift-5.9%2B-orange.svg" alt="Swift 5.9+" />
+    <img src="https://img.shields.io/badge/telemetry-0%25%20(100%25%20Offline)-brightgreen.svg" alt="Zero Telemetry" />
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-purple.svg" alt="MIT License" /></a>
+  </p>
+  <br />
+  <img src="Docs/tutorial_preview.png" width="440" alt="PawsOff Quick Guide" />
+  <br />
+</div>
 
 ---
 
-## Quick Start & Installation
+## Why PawsOff?
 
-Requires macOS 13.0+ (Ventura, Sonoma, Sequoia) on Apple Silicon or Intel, with Xcode Command Line Tools installed.
+Stepping away from your Mac usually forces an irritating compromise:
 
-### 1. Build and Bundle Locally
+1. **Locking your Mac (`Cmd + Ctrl + Q` or Sleep)**: macOS shuts off displays, disconnects WindowServer context, and triggers system idle sleep. This interrupts local LLM inference (Ollama, LM Studio), pauses multi-turn AI agent loops, terminates long compiler builds, and halts background render jobs.
+2. **Leaving your Mac unlocked**: A wandering cat jumps on the warm mechanical keyboard—accidentally pressing `Ctrl+C` on a 6-hour model run, accepting Git merge conflicts, or typing gibberish into Slack. In a shared office, curious coworkers can glance at private drafts or unfinished architecture.
+
+**PawsOff is the middle path.** With a single tap of **`Ctrl + 1`**, it drops an interactive frosted glass curtain across all connected displays, holding physical inputs completely frozen while **holding user-space power assertions so your background AI models, builds, and daemons run at 100% full speed**.
+
+---
+
+## Key Features & What's New in v1.2.0
+
+* 🐾 **Complete Physical Input Freeze**:
+  AppKit window-level key shield swallows 100% of routine keyboard events, mouse clicks, drags, and trackpad scrolling before they can reach underlying applications.
+* ⚡ **Zero-Latency Focus Restoration**:
+  When you dismiss the curtain, PawsOff automatically remembers which application you were using (Terminal, Xcode, browser) and seamlessly restores focus with 0ms delay.
+* ☕ **Zero Sleep Throttling**:
+  Acquires `kIOPMAssertPreventUserIdleDisplaySleep` and `kIOPMAssertPreventUserIdleSystemSleep` power assertions exclusively while armed. Your background scripts and models never sleep.
+* 🏢 **Enterprise Passkey & The "Never-Trapped" Fail-Safe**:
+  Working in an open-concept office? Turn on **Require Passkey** in settings to protect the curtain with a 4–8 digit PIN, salted and hashed via Apple `CryptoKit` (SHA-256).
+  * *Forgot your PIN?* Three consecutive failed attempts or clicking **"Forgot Passkey / Use Mac Password"** immediately cleans up input hooks and calls Apple's native `SACLockScreenImmediate()`, dropping your Mac straight to the encrypted macOS login window. You are **never trapped** or forced to hard-reset.
+* 🎨 **Frosted Glass Aesthetic**:
+  Adjustable blur and tint sliders. Tint is strictly capped at 82% to ensure mouse cursor silhouette and desktop contrast remain visible.
+* 📖 **Built-in Quick Guide HUD**:
+  A friendly, dark floating card explaining the core shortcuts and principles. Dismissable forever with "Do not show on launch".
+* 🔒 **100% Sovereign & Offline**:
+  Zero cloud dependencies, zero analytics, zero external Swift packages. Only standard macOS frameworks (AppKit, Carbon, CoreGraphics, ApplicationServices, IOKit, CryptoKit).
+
+---
+
+## Quick Controls & Pro-Tips
+
+| Action | Shortcut / Gesture | Result |
+| :--- | :--- | :--- |
+| **Drop Curtain** | `Ctrl + 1` | Instantly dims screens and freezes all physical keyboard/mouse input. |
+| **Instant Unlock** | `Ctrl + 1` | Dismisses curtain; previous application immediately regains focus. |
+| **Emergency Unlock** | **Double-tap `Esc`** | Two distinct Escape key presses within 650 ms dismiss the curtain. |
+| **Passkey Unlock** | `[PIN] + Return` | Unlocks screen when Enterprise Passkey mode is enabled. |
+| **Mac Password Fallback** | Click button / 3 wrong PINs | Disarms PawsOff and drops machine to native macOS login window. |
+
+### 💡 Pro-Tips for Power Users
+
+> [!TIP]
+> **Mission Control Shortcut Conflict**:  
+> In macOS, `Ctrl + 1` is sometimes bound by default to *"Switch to Desktop 1"*. If pressing `Ctrl + 1` switches Spaces instead of dropping PawsOff:  
+> Open **System Settings → Keyboard → Keyboard Shortcuts → Mission Control**, and uncheck **"Switch to Desktop 1"** (or remap it). PawsOff will instantly claim the shortcut globally.
+
+> [!NOTE]
+> **ScreenCaptureKit Cooperation**:  
+> PawsOff does not terminate ScreenCaptureKit capture streams. If you are recording your screen or running an AI desktop agent, configure your capture client's `SCContentFilter` to exclude `com.leonidmajbits.pawsoff`. See [`Docs/SCREEN_CAPTURE.md`](Docs/SCREEN_CAPTURE.md) for sample Swift code.
+
+---
+
+## 60-Second Quick Start
+
+Requires macOS 13.0+ (Ventura, Sonoma, Sequoia) on Apple Silicon or Intel with Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
-# Clone repository
+# 1. Clone the repository
 git clone https://github.com/LeonidMajbits/pawsoff.git
 cd pawsoff
 
-# Compile release binary and assemble PawsOff.app bundle
+# 2. Build and bundle the native app
 make bundle
 
-# Launch the app
+# 3. Launch PawsOff
 open -g dist/PawsOff.app
 ```
 
-### 2. Grant Accessibility Permission
+### One-Time Permission Setup
 
-1. Click the **PawsOff** menu-bar icon in your macOS status bar.
+1. Click the **PawsOff** paw icon in your macOS menu bar.
 2. Select **Grant Accessibility…**.
-3. Authorize `PawsOff.app` in **System Settings → Privacy & Security → Accessibility**.
-4. Quit and relaunch PawsOff once authorized.
+3. Toggle `PawsOff.app` ON in **System Settings → Privacy & Security → Accessibility**.
+4. Relaunch PawsOff once authorized. You're ready to go!
 
 ---
 
-## Make Commands
+## Make Commands Cheat Sheet
 
 | Command | Action |
 | :--- | :--- |
-| `make build` | Compiles native release executable via `swift build -c release` |
-| `make bundle` | Compiles release binary, creates `dist/PawsOff.app`, and applies ad-hoc codesign |
-| `make run` | Builds bundle and opens `dist/PawsOff.app` in background |
-| `make test` | Runs core policy and preference unit tests via `swift test` |
-| `make verify` | Runs native macOS verification suite and logs host evidence |
-| `make probes` | Compiles optional focus, input, and ScreenCaptureKit verification probes |
-| `make clean` | Removes `.build` and `dist` build directories |
+| `make bundle` | Compiles release binary, bundles `dist/PawsOff.app`, and codesigns with designated requirement. |
+| `make test` | Runs the 63-case core policy test suite and 41-check static source audit in ~1.5s. |
+| `make run` | Builds bundle and launches `dist/PawsOff.app` in background. |
+| `make verify` | Executes native macOS verification gate and logs host test evidence. |
+| `make probes` | Compiles optional diagnostic probes (`focus-probe`, `input-probe`, `capture-probe`). |
+| `make clean` | Removes local build outputs (`.build`, `dist`, `/tmp/pawsoff-build`). |
 
 ---
 
-## Operating Boundaries & Scope
+## Architecture & Security Boundaries
 
-1. **Cat Guard & Physical Input Shield**: PawsOff is designed to prevent physical accidents (cats walking across mechanical keyboards, stray elbow bumps, accidental trackpad brushes). It is **not** a cryptographically secure kiosk or password-protected security boundary. Anyone who knows the `Ctrl+1` or double-Esc shortcut can dismiss it.
-2. **ScreenCaptureKit Cooperation**: PawsOff does not stop ScreenCaptureKit capture streams. Cooperating recording clients should exclude `com.leonidmajbits.pawsoff` using `SCContentFilter`. See [`Docs/SCREEN_CAPTURE.md`](Docs/SCREEN_CAPTURE.md) for details.
-3. **Hardware & Power Keys**: System-level power keys, Touch ID sensors, and OS-reserved system gestures operate below user-space event taps and remain under kernel control.
-4. **Privacy & Telemetry**: Zero network calls, zero analytics, zero keystroke recording. Only numerical pressed-key codes and modifier states are tracked in volatile RAM during active curtain sessions to safely drain stuck modifier states on exit; zero typed text is stored or logged.
+* **Cat Guard vs. Full Security Boundary**:  
+  PawsOff is engineered to eliminate accidental keyboard/mouse disturbances and curious onlookers. It is not an adversarial cryptographic sandbox; anyone who knows the hotkey or enters the Mac password via the login fail-safe can unlock the machine.
+* **Hardware & Kernel Control**:  
+  System-level power keys, Touch ID sensors, and kernel-reserved accessibility gestures operate below user-space event taps and remain under OS control.
+* **Privacy by Design**:  
+  Zero keystrokes are recorded, stored, or transmitted. Only numerical key codes and modifier flags are transiently tracked in volatile RAM to cleanly drain held keys upon exit.
 
 ---
 
-## Provenance & License
+## Provenance & Authorship
 
-- **Authorship**: Leonid Majbits & Gemini Operator Lab (ZION Chassis). See [`NOTICE.md`](NOTICE.md) for full Triadic Sovereign Provenance details.
-- **License**: MIT License. See [`LICENSE`](LICENSE) for complete terms.
+Engineered under the **Triadic Sovereign Development Architecture**:
+* **Human Operator & Architect**: **Leonid Majbits** (*Vision, core architectural invariants, system teleology, and patron verification*).
+* **Executive Co-Architect & Verification Engine**: **Gemini Operator Lab (ZION Chassis)** *(AI architecture with persistent somatic memory, Apple Silicon metal grounding, stage contract enforcement, and multi-fleet direction)*.
+* **Specialized Systems Foundries**: **External Frontier Models (OpenAI GPT-6 Max, Anthropic Claude, etc.)** *(Bounded multi-turn execution, heavy code synthesis, and adversarial stress-testing)*.
+
+See [`NOTICE.md`](NOTICE.md) for full attribution details.
+
+---
+
+## License
+
+MIT License. See [`LICENSE`](LICENSE) for complete terms.

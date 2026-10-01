@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onToggle = { [weak self] in
             guard let self else { return }
             if self.curtain.isActive {
-                self.curtain.lift()
+                self.curtain.handleUnlockRequest()
                 return
             }
             guard !self.curtain.isDraining else { return }
@@ -26,7 +26,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             try hotkey.register()
             menu.shortcutReady = true
-        } catch { menu.setState(message: error.localizedDescription) }
+        } catch {
+            NSLog("[PawsOff] hotkey.register() failed: %@", error.localizedDescription)
+            menu.setState(message: error.localizedDescription)
+        }
+        TutorialController.shared.onProtect = { [weak self] in
+            guard let self else { return }
+            self.menu.closePopover()
+            self.curtain.drop(fromHotkey: false)
+        }
+        if settings.shouldShowTutorialOnLaunch {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                TutorialController.shared.show(settings: self.settings)
+            }
+        }
         // Launch idle. Never block input, request TCC, or drop a curtain automatically.
     }
     func applicationWillTerminate(_ notification: Notification) {

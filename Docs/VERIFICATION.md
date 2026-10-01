@@ -5,7 +5,7 @@ Current record: **all native runtime rows below are NOT RUN in the authoring env
 ## A. Compile and package
 
 ```bash
-cd /path/to/pawsoff
+cd pawsoff
 make verify
 make probes
 open -g dist/PawsOff.app

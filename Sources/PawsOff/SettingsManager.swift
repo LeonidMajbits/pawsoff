@@ -3,6 +3,7 @@ import PawsOffCore
 
 final class SettingsManager {
     private let store = PreferenceStore()
+    let passkey = PasskeyManager()
     private(set) var appearance: AppearanceSettings
     var onChange: ((AppearanceSettings) -> Void)?
 
@@ -21,5 +22,15 @@ final class SettingsManager {
         appearance = value
         store.save(value)
         onChange?(value)
+    }
+
+    private let tutorialSuppressedKey = "suppress_tutorial_on_launch"
+
+    var shouldShowTutorialOnLaunch: Bool {
+        !UserDefaults.standard.bool(forKey: tutorialSuppressedKey)
+    }
+
+    func setTutorialSuppressedOnLaunch(_ suppressed: Bool) {
+        UserDefaults.standard.set(suppressed, forKey: tutorialSuppressedKey)
     }
 }

@@ -3,13 +3,12 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$ROOT"
 [[ "$(uname -s)" == Darwin ]] || { echo 'This is the native macOS build gate.' >&2; exit 2; }
-mkdir -p "$ROOT/Validation"
 REPORT="$(mktemp -d "$ROOT/Validation/host-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")"
 exec > >(tee "$REPORT/build.log") 2>&1
 sw_vers
 xcrun swift --version
 uname -m
-xcrun swift test
+./Scripts/run_core_tests.sh
 python3 Scripts/audit_source.py
 make bundle
 plutil -lint dist/PawsOff.app/Contents/Info.plist

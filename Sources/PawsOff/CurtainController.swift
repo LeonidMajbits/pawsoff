@@ -11,6 +11,7 @@ final class CurtainController: NSObject {
     private var heartbeatTimer: Timer?
     private var pointerTimer: Timer?
     private(set) var isActive = false
+    private var previousApp: NSRunningApplication?
     var isDraining: Bool { !isActive && input.isRunning }
     var onStateChanged: ((String?) -> Void)?
     var onInputReleased: (() -> Void)?
@@ -18,9 +19,10 @@ final class CurtainController: NSObject {
     init(settings: SettingsManager) {
         self.settings = settings
         super.init()
-        input.onUnlock = { [weak self] in self?.lift() }
+        input.onUnlock = { [weak self] in self?.handleUnlockRequest() }
         input.onDrained = { [weak self] in
             guard let self else { return }
+            guard !self.isActive else { return }
             self.input.stopImmediately()
             self.onInputReleased?()
             self.onStateChanged?(nil)
@@ -33,7 +35,7 @@ final class CurtainController: NSObject {
         for name in [NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification,
                      NSWorkspace.sessionDidResignActiveNotification] {
             workspaceObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                guard let self, self.input.isRunning else { return }
+                guard let self, self.isActive || self.input.isRunning else { return }
                 self.abort("The OS slept, blanked its displays, or switched sessions. PawsOff is off; re-arm manually.")
             })
         }
@@ -57,23 +59,23 @@ final class CurtainController: NSObject {
             onStateChanged?("No active display is available.")
             return
         }
-        guard InputShield.permissionReady else {
-            onStateChanged?("Accessibility permission is required to guard inputs.")
-            return
-        }
-        guard !InputShield.secureInputEnabled else {
-            onStateChanged?("Secure Event Input is active; unable to intercept events.")
-            return
-        }
+
+        previousApp = NSWorkspace.shared.frontmostApplication
+
         do {
             try power.acquire()
-            do {
-                try input.start(activationChordConsumed: fromHotkey)
-            } catch {
-                power.release()
-                onStateChanged?("Input shield failed to start: \(error.localizedDescription)")
-                return
+            settings.passkey.resetAttempts()
+            input.isAwaitingPasskey = false
+
+            // Optional Quartz session tap for low-level system modifier interception:
+            if InputShield.permissionReady && !InputShield.secureInputEnabled {
+                do {
+                    try input.start(activationChordConsumed: fromHotkey)
+                } catch {
+                    NSLog("[PawsOff] Optional Quartz session tap failed: %@. Proceeding with window shield.", error.localizedDescription)
+                }
             }
+
             NSCursor.hide()
             defer { NSCursor.unhide() }
             isActive = true
@@ -83,18 +85,33 @@ final class CurtainController: NSObject {
                 power.release()
                 return
             }
+
+            // Activate PawsOff and make the curtain key so all keyboard and mouse events
+            // are swallowed by CurtainWindow and ShieldView:
+            NSApp.activate(ignoringOtherApps: true)
+            if let keyWin = windows.values.first(where: { $0.screen == NSScreen.main }) ?? windows.values.first {
+                keyWin.makeKeyAndOrderFront(nil)
+                keyWin.makeFirstResponder(keyWin.shieldView)
+            }
+
             NSCursor.setHiddenUntilMouseMoves(false)
             NSCursor.arrow.set()
             startPointerLocator()
             onStateChanged?(nil)
         } catch {
-            abort(error.localizedDescription)
+            NSLog("[PawsOff] drop() error: %@", error.localizedDescription)
+            input.stopImmediately()
+            power.release()
+            isActive = false
+            removeWindows()
+            onStateChanged?("Failed to block keyboard: \(error.localizedDescription)")
         }
     }
 
     func lift() {
         precondition(Thread.isMainThread)
         guard isActive else { return }
+        input.isAwaitingPasskey = false
         if input.isRunning {
             input.requestDrain()
         }
@@ -102,6 +119,50 @@ final class CurtainController: NSObject {
         removeWindows()
         power.release()
         onStateChanged?(nil)
+
+        // Seamlessly restore focus to whatever app was active before:
+        if let prev = previousApp, !prev.isTerminated {
+            prev.activate(options: [.activateIgnoringOtherApps])
+        }
+        previousApp = nil
+    }
+
+    func handleUnlockRequest() {
+        if settings.passkey.isPasskeyEnabled {
+            input.cancelDrain()
+            promptForPasskey()
+        } else {
+            lift()
+        }
+    }
+
+    func promptForPasskey() {
+        guard isActive else { return }
+        input.cancelDrain()
+        input.isAwaitingPasskey = true
+        settings.passkey.resetAttempts()
+        for window in windows.values {
+            window.shieldView.showPasskeyPrompt()
+            window.orderFrontRegardless()
+            window.makeKey()
+            window.makeFirstResponder(window.shieldView.passkeyField)
+        }
+        onInputReleased?()
+    }
+
+    func cancelPasskeyPrompt() {
+        input.isAwaitingPasskey = false
+        settings.passkey.resetAttempts()
+        for window in windows.values {
+            window.shieldView.hidePasskeyPrompt()
+            window.makeFirstResponder(window.shieldView)
+        }
+    }
+
+    func emergencyLockdown() {
+        NSLog("[PawsOff] Emergency lockout triggered. Handing off to macOS native login screen.")
+        lift()
+        PasskeyManager.triggerNativeMacLockScreen()
     }
 
     func updateAppearance() {
@@ -126,7 +187,33 @@ final class CurtainController: NSObject {
                 window.setFrame(screen.frame, display: true)
             } else {
                 window = CurtainWindow(screen: screen, appearance: settings.appearance)
-                window.shieldView.onDismiss = { [weak self] in self?.lift() }
+                window.shieldView.onDismiss = { [weak self] in self?.handleUnlockRequest() }
+                window.shieldView.onPasskeySubmitted = { [weak self] pin in
+                    guard let self else { return }
+                    if self.settings.passkey.verify(pin: pin) {
+                        self.lift()
+                    } else {
+                        if self.settings.passkey.isLockedOut {
+                            for w in self.windows.values {
+                                w.shieldView.showPasskeyError("Too many attempts. Locking macOS…")
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                                self?.emergencyLockdown()
+                            }
+                        } else {
+                            let left = self.settings.passkey.remainingAttempts
+                            for w in self.windows.values {
+                                w.shieldView.showPasskeyError("Incorrect PIN (\(left) attempt\(left == 1 ? "" : "s") remaining)")
+                            }
+                        }
+                    }
+                }
+                window.shieldView.onEmergencyLock = { [weak self] in
+                    self?.emergencyLockdown()
+                }
+                window.shieldView.onCancelPasskey = { [weak self] in
+                    self?.cancelPasskeyPrompt()
+                }
                 windows[identifier] = window
             }
             window.present()
