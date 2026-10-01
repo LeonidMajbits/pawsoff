@@ -140,7 +140,6 @@ final class CurtainController: NSObject {
         guard isActive else { return }
         input.cancelDrain()
         input.isAwaitingPasskey = true
-        settings.passkey.resetAttempts()
         for window in windows.values {
             window.shieldView.showPasskeyPrompt()
             window.orderFrontRegardless()
@@ -152,7 +151,6 @@ final class CurtainController: NSObject {
 
     func cancelPasskeyPrompt() {
         input.isAwaitingPasskey = false
-        settings.passkey.resetAttempts()
         for window in windows.values {
             window.shieldView.hidePasskeyPrompt()
             window.makeFirstResponder(window.shieldView)
@@ -197,8 +195,9 @@ final class CurtainController: NSObject {
                             for w in self.windows.values {
                                 w.shieldView.showPasskeyError("Too many attempts. Locking macOS…")
                             }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                                self?.emergencyLockdown()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                                guard let self, self.isActive, self.settings.passkey.isLockedOut else { return }
+                                self.emergencyLockdown()
                             }
                         } else {
                             let left = self.settings.passkey.remainingAttempts
